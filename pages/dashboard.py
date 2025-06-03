@@ -6,6 +6,8 @@ from data.data_loader import ambil_data_saham
 from config import format_rupiah
 from features import fundamental
 from features import technical
+from features import sentiment, simulation
+
 
 def show(ticker):
     st.subheader("📈 Grafik Harga Saham")
@@ -37,3 +39,6 @@ def show_fundamental(ticker):
 def show_technical(ticker):
     data = ambil_data_saham(ticker)
     technical.show_technical_analysis(data, ticker)
+
+def show_simulation(ticker):
+    simulation.run_simulation(ticker)
