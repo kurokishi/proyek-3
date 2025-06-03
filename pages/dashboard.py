@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 from data.data_loader import ambil_data_saham
 from config import format_rupiah
 from features import fundamental
+from features import technical
 
 def show(ticker):
     st.subheader("📈 Grafik Harga Saham")
@@ -32,3 +33,7 @@ def show(ticker):
 
 def show_fundamental(ticker):
     fundamental.show_fundamental_analysis(ticker)
+
+def show_technical(ticker):
+    data = ambil_data_saham(ticker)
+    technical.show_technical_analysis(data, ticker)
