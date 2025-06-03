@@ -1,14 +1,15 @@
 # main.py
+
 import streamlit as st
 from pages import dashboard, compare, predictor
 from config import get_tickers
 
 def main():
-    st.set_page_config(layout="wide", page_title="Analisis Saham Lengkap + AI")
+    st.set_page_config(layout="wide", page_title="📊 Analisis Saham Modular + AI")
 
-    st.sidebar.title("📊 Menu")
+    st.sidebar.title("Menu Navigasi")
     app_mode = st.sidebar.radio(
-        "Pilih Analisis", 
+        "Pilih Mode Analisis", 
         ["Dashboard Utama", "Analisis Fundamental", "Analisis Teknikal", "Prediksi Harga", "Simulasi Portofolio", "Perbandingan Saham"]
     )
 
@@ -21,7 +22,8 @@ def main():
     if app_mode == "Perbandingan Saham":
         compare.show(tickers)
     elif len(tickers) > 1:
-        st.warning(f"Mode '{app_mode}' hanya tersedia untuk satu saham. Menampilkan perbandingan saham.")
+        st.warning(f"Mode '{app_mode}' hanya berlaku untuk 1 saham")
+        st.info("Menampilkan mode perbandingan sebagai gantinya.")
         compare.show(tickers)
     else:
         ticker = tickers[0]
