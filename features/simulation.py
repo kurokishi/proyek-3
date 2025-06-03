@@ -1,63 +1,86 @@
 # features/simulation.py
 
 import streamlit as st
-from datetime import datetime, timedelta
+import pandas as pd
 import plotly.graph_objects as go
+from datetime import datetime, timedelta
 from data.data_loader import ambil_data_saham
 from config import format_rupiah
-import pandas as pd
 
-def run_simulation(ticker):
-    st.subheader("💰 Simulasi Portofolio")
-    data = ambil_data_saham(ticker)
-    if data.empty:
-        st.warning("Data tidak tersedia")
+def run_multi_simulation(tickers):
+    st.subheader("💼 Simulasi Portofolio Multi-Saham")
+
+    default_modal = 10_000_000
+    total_modal = st.number_input("Total Modal Investasi (Rp)", min_value=1_000_000, value=default_modal, step=1_000_000)
+
+    default_date = datetime.now() - timedelta(days=180)
+    start_date = st.date_input("Tanggal Mulai Investasi", value=default_date)
+
+    st.markdown("### 📊 Alokasi Saham")
+    alokasi = {}
+    total_alokasi = 0
+
+    for ticker in tickers:
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            persen = st.number_input(f"Alokasi untuk {ticker} (%)", min_value=0, max_value=100, value=int(100/len(tickers)))
+        with col2:
+            frekuensi = st.selectbox(f"Frekuensi DCA untuk {ticker}", ["Sekali (Lump Sum)", "Bulanan", "Mingguan"], key=f"dca_{ticker}")
+        alokasi[ticker] = {"persen": persen, "dca": frekuensi}
+        total_alokasi += persen
+
+    if total_alokasi != 100:
+        st.error("Total alokasi harus 100%.")
         return
 
-    col1, col2 = st.columns(2)
-    with col1:
-        initial_investment = st.number_input("Jumlah Investasi Awal (Rp)", min_value=100000, value=10000000, step=100000)
-    with col2:
-        investment_date = st.date_input("Tanggal Investasi", 
-                                      value=datetime.now() - timedelta(days=180),
-                                      min_value=data.index[0].date(),
-                                      max_value=data.index[-1].date())
+    if st.button("Simulasikan Portofolio"):
+        nilai_akhir_total = 0
+        df_plot = pd.DataFrame()
 
-    if st.button("Hitung Kinerja"):
-        investment_date = pd.to_datetime(investment_date).tz_localize(None)
+        for ticker in tickers:
+            data = ambil_data_saham(ticker)
+            if data.empty or pd.to_datetime(start_date) not in data.index:
+                st.warning(f"Data tidak tersedia untuk {ticker}")
+                continue
 
-        if investment_date < data.index[0] or investment_date > data.index[-1]:
-            st.error("Tanggal investasi tidak valid")
-            return
+            alokasi_rp = total_modal * (alokasi[ticker]["persen"] / 100)
+            frek = alokasi[ticker]["dca"]
+            start_date_clean = pd.to_datetime(start_date).tz_localize(None)
 
-        mask = data.index >= investment_date
-        if not any(mask):
-            st.error("Tidak ada data pada tanggal tersebut")
-            return
+            df = data[data.index >= start_date_clean].copy()
+            if df.empty:
+                st.warning(f"Tidak ada data setelah {start_date} untuk {ticker}")
+                continue
 
-        start_price = data.loc[mask].iloc[0]['Close']
-        current_price = data['Close'].iloc[-1]
+            investasi_points = [df.index[0]]
+            if frek == "Bulanan":
+                investasi_points = df.resample('30D').first().dropna().index
+            elif frek == "Mingguan":
+                investasi_points = df.resample('7D').first().dropna().index
 
-        shares = initial_investment / start_price
-        current_value = shares * current_price
-        profit = current_value - initial_investment
-        profit_pct = (profit / initial_investment) * 100
+            modal_per_dca = alokasi_rp / len(investasi_points)
+            total_saham = 0
+            for tanggal in investasi_points:
+                harga = df.loc[tanggal]['Close']
+                jumlah_beli = modal_per_dca / harga
+                total_saham += jumlah_beli
 
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Nilai Awal", format_rupiah(initial_investment))
-        col2.metric("Nilai Sekarang", format_rupiah(current_value), f"{profit_pct:.2f}%")
-        col3.metric("Keuntungan/Rugi", format_rupiah(profit))
+            nilai_akhir = total_saham * df['Close'].iloc[-1]
+            nilai_akhir_total += nilai_akhir
 
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=data.index,
-            y=data['Close'] / start_price * initial_investment,
-            name='Nilai Portofolio'
-        ))
-        fig.add_vline(x=investment_date, line_dash="dash", line_color="green")
-        fig.update_layout(
-            title="Kinerja Portofolio",
-            xaxis_title="Tanggal",
-            yaxis_title="Nilai (Rp)"
-        )
-        st.plotly_chart(fig, use_container_width=True)
+            df_plot[ticker] = df['Close'] / df['Close'].iloc[0] * modal_per_dca * len(investasi_points)
+
+            st.write(f"📈 **{ticker}**")
+            st.write(f"- Jumlah pembelian: {len(investasi_points)} kali")
+            st.write(f"- Total saham terkumpul: {total_saham:.2f}")
+            st.write(f"- Nilai akhir: {format_rupiah(nilai_akhir)}")
+
+        st.markdown("---")
+        st.metric("📊 Nilai Akhir Portofolio", format_rupiah(nilai_akhir_total))
+
+        if not df_plot.empty:
+            fig = go.Figure()
+            for ticker in df_plot.columns:
+                fig.add_trace(go.Scatter(x=df_plot.index, y=df_plot[ticker], name=ticker))
+            fig.update_layout(title="Kinerja Portofolio per Saham", xaxis_title="Tanggal", yaxis_title="Rp")
+            st.plotly_chart(fig, use_container_width=True)
