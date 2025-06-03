@@ -1,7 +1,7 @@
 # main.py
 
 import streamlit as st
-#from pages import dashboard, compare, predictor
+from pages import dashboard, compare, predictor
 from config import get_tickers
 
 def main():
